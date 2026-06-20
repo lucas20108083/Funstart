@@ -1,7 +1,6 @@
 package moe.hinakusoft.funstart.listener;
 
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
+import io.papermc.paper.event.player.PlayerTradeEvent;
 import moe.hinakusoft.funstart.FunstartPlugin;
 import moe.hinakusoft.funstart.manager.DailyTaskManager;
 import moe.hinakusoft.funstart.model.PlayerData;
@@ -21,7 +20,8 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerLevelChangeEvent;
 
-import io.papermc.paper.event.player.PlayerTradeEvent;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class PlayerListener
 implements Listener {
@@ -159,11 +159,6 @@ implements Listener {
             return;
         }
 
-        if (LOGS.contains(type)) {
-            int points = ThreadLocalRandom.current().nextInt(2);
-            if (points == 0) return;
-            data.addPoints(points);
-            player.sendMessage("§e[Funstart] §a砍树获得 §e+" + points + " §a点");
-        }
+
     }
 }

@@ -1,5 +1,5 @@
 name: Funstart
-version: 2.7.1
+version: 2.7.2
 main: moe.hinakusoft.funstart.FunstartPlugin
 api-version: '1.21'
 prefix: Funstart

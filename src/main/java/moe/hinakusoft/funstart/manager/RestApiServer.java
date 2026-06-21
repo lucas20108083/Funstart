@@ -3,6 +3,12 @@ package moe.hinakusoft.funstart.manager;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import moe.hinakusoft.funstart.FunstartPlugin;
+import moe.hinakusoft.funstart.model.PlayerData;
+import org.bukkit.Bukkit;
+import org.bukkit.Statistic;
+import org.bukkit.entity.Player;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,15 +17,20 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Executors;
-import moe.hinakusoft.funstart.FunstartPlugin;
-import moe.hinakusoft.funstart.model.PlayerData;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.Statistic;
-import org.bukkit.entity.Player;
 
+/**
+ * 内嵌 REST API 服务器。
+ * <p>
+ * 在端口 29966 上提供 HTTP 接口：
+ * - /              Web 管理面板（静态 HTML）
+ * - /api/status    服务器状态（TPS、内存、在线人数）
+ * - /api/players   在线玩家详细信息
+ * - /api/ranking   点数排行榜前 50
+ * <p>
+ * 使用 Java 21 虚拟线程执行器，每个请求独立协程处理，
+ * 替代原单线程执行器，消除并发请求相互阻塞的问题。
+ */
 public class RestApiServer {
 
     private final FunstartPlugin plugin;
@@ -33,7 +44,7 @@ public class RestApiServer {
         this.server.createContext("/api/ranking", new RankingHandler());
         this.server.createContext("/api/players", new PlayersHandler());
         this.server.createContext("/api/status", new StatusHandler());
-        this.server.setExecutor(Executors.newSingleThreadExecutor());
+        this.server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
 
         byte[] html = null;
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("web/index.html")) {

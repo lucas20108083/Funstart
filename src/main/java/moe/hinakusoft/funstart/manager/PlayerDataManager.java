@@ -10,11 +10,35 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+/**
+ * 玩家数据管理器。
+ * <p>
+ * 每个玩家一个 {uuid}.yml 文件，缓存到 ConcurrentHashMap 中。
+ * 保存操作异步提交到独立线程池，不阻塞主线程。
+ * 插件关闭时 saveAll() 同步写出所有脏数据。
+ * <p>
+ * == 异步保存 ==
+ * savePlayerData() 通过 saveExecutor 在独立线程中执行 YAML 写操作。
+ * saveAll() 在插件关闭时直接同步写入，确保数据完整。
+ */
 public class PlayerDataManager {
     private final FunstartPlugin plugin;
     private final File dataFolder;
-    private final Map<UUID, PlayerData> cache = new ConcurrentHashMap<UUID, PlayerData>();
+    /**
+     * 玩家数据缓存，UUID → PlayerData
+     */
+    private final Map<UUID, PlayerData> cache = new ConcurrentHashMap<>();
+    /**
+     * 单线程异步保存执行器
+     */
+    private final ExecutorService saveExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "funstart-playerdata-save");
+        t.setDaemon(true);
+        return t;
+    });
 
     public PlayerDataManager(FunstartPlugin plugin) {
         this.plugin = plugin;
@@ -33,7 +57,7 @@ public class PlayerDataManager {
     public void savePlayerData(UUID uuid) {
         PlayerData data = this.cache.get(uuid);
         if (data != null) {
-            this.saveToFile(uuid, data);
+            this.saveToFileAsync(uuid, data);
         }
     }
 
@@ -41,7 +65,7 @@ public class PlayerDataManager {
         UUID effUuid = plugin.getEffectiveUuid(player);
         PlayerData data = this.cache.get(effUuid);
         if (data != null) {
-            this.saveToFile(effUuid, data);
+            this.saveToFileAsync(effUuid, data);
         }
     }
 
@@ -51,10 +75,14 @@ public class PlayerDataManager {
         }
     }
 
+    private void saveToFileAsync(UUID uuid, PlayerData data) {
+        saveExecutor.submit(() -> saveToFile(uuid, data));
+    }
+
     public void cleanAcceptedShares(String warpId) {
         for (Map.Entry<UUID, PlayerData> entry : this.cache.entrySet()) {
             if (entry.getValue().getAcceptedShares().remove(warpId)) {
-                this.saveToFile(entry.getKey(), entry.getValue());
+                this.saveToFileAsync(entry.getKey(), entry.getValue());
             }
         }
     }

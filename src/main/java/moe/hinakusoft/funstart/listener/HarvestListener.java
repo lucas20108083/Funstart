@@ -1,8 +1,5 @@
 package moe.hinakusoft.funstart.listener;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 import moe.hinakusoft.funstart.FunstartPlugin;
 import moe.hinakusoft.funstart.manager.BlockUtils;
 import moe.hinakusoft.funstart.model.ClaimRegion;
@@ -19,6 +16,17 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * 批量收割监听器。
+ * <p>
+ * 玩家潜行 + 锄头破坏成熟作物时，通过 2D 泛洪填充收割相连的
+ * 成熟作物并自动补种。非下界疣作物自动补种，消耗点数。
+ * 区块保护检查在泛洪填充的 removeIf 中完成。
+ */
 public class HarvestListener implements Listener {
 
     private static final Set<Material> CROPS = Set.of(

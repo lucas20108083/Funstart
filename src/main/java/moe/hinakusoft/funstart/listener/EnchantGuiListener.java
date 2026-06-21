@@ -19,8 +19,16 @@ import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * 附魔 GUI 监听器。
+ * <p>
+ * 提供 5 种材料等级（青金石→下界之星）的附魔界面，
+ * 支持 7 个分类的原版附魔 + 8 种自定义附魔。
+ * 使用随机偏移成功率系统。所有随机数改用 ThreadLocalRandom
+ * 以避免 Random 实例的分配与竞争开销。
+ */
 public class EnchantGuiListener implements Listener {
 
     public enum EnchantMaterial {
@@ -68,7 +76,6 @@ public class EnchantGuiListener implements Listener {
     );
 
     private final FunstartPlugin plugin;
-    private final Random random = new Random();
 
     public EnchantGuiListener(FunstartPlugin plugin) {
         this.plugin = plugin;
@@ -358,8 +365,8 @@ public class EnchantGuiListener implements Listener {
         if (!deductCost(player, material, targetLevel)) return;
 
         double baseRate = getBaseSuccessRate(material, targetLevel);
-        double actualRate = baseRate + (random.nextDouble() * 12 - 5);
-        boolean success = random.nextDouble() * 100 < actualRate;
+        double actualRate = baseRate + (ThreadLocalRandom.current().nextDouble() * 12 - 5);
+        boolean success = ThreadLocalRandom.current().nextDouble() * 100 < actualRate;
 
         String name = getCN(ench);
         String roman = toRoman(targetLevel);
@@ -402,8 +409,8 @@ public class EnchantGuiListener implements Listener {
         if (!deductCost(player, material, targetLevel)) return;
 
         double baseRate = getBaseSuccessRate(material, targetLevel);
-        double actualRate = baseRate + (random.nextDouble() * 12 - 5);
-        boolean success = random.nextDouble() * 100 < actualRate;
+        double actualRate = baseRate + (ThreadLocalRandom.current().nextDouble() * 12 - 5);
+        boolean success = ThreadLocalRandom.current().nextDouble() * 100 < actualRate;
 
         if (success) {
             setCustomLevel(item, plugin, ce, targetLevel);

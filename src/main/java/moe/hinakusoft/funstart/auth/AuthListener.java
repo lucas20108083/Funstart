@@ -12,11 +12,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.*;
 
 import java.net.InetSocketAddress;
 import java.util.HashMap;
@@ -90,15 +86,7 @@ public class AuthListener implements Listener {
             plugin.setEffectiveUuid(uuid, uuid);
             player.sendMessage("§a已自动登录");
         } else {
-            // Check for cross-account auto-login (same IP, different UUID)
-            UUID crossUuid = authManager.findByAutoLoginIp(ip, uuid);
-            if (crossUuid != null) {
-                plugin.setEffectiveUuid(uuid, crossUuid);
-                setAuthenticated(uuid, true);
-                player.sendMessage("§a已自动登录 (账号: §e" + authManager.getUsername(crossUuid) + "§a)");
-            } else {
-                player.sendMessage("§c请登录 - 输入 §e login §c或 §e登录");
-            }
+            player.sendMessage("§c请登录 - 输入 §e login §c或 §e登录");
         }
     }
 
@@ -239,21 +227,12 @@ public class AuthListener implements Listener {
             }
             case 1 -> {
                 loginSteps.remove(uuid);
-                // Try UUID-bound auth first
                 if (authManager.authenticate(uuid, step.username, msg)) {
                     setAuthenticated(uuid, true);
                     plugin.setEffectiveUuid(uuid, uuid);
                     player.sendMessage("§a登录成功! 欢迎回来");
                 } else {
-                    // Try cross-account auth
-                    UUID targetUuid = authManager.authenticateByCredentials(step.username, msg);
-                    if (targetUuid != null && !targetUuid.equals(uuid)) {
-                        plugin.setEffectiveUuid(uuid, targetUuid);
-                        setAuthenticated(uuid, true);
-                        player.sendMessage("§a登录成功! 当前账号: §e" + authManager.getUsername(targetUuid));
-                    } else {
-                        player.sendMessage("§c账号名或密码错误! 请重新登录 (/login)");
-                    }
+                    player.sendMessage("§c账号名或密码错误! 请重新登录 (/login)");
                 }
             }
         }

@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
  * 玩家认证管理器。
  * <p>
  * 使用 SHA-256 哈希密码，提供登录、注册、IP 自动登录等功能。
+ * 每个账号绑定到特定玩家的 UUID，只能由该玩家登录。
  * 数据以 YAML 格式持久化到 auth.yml。
  * <p>
  * == 异步去重保存 ==
@@ -75,13 +76,15 @@ public class AuthManager {
     public void register(UUID uuid, String username, String password, String ip, boolean autoLogin) {
         String actualUsername = "0".equals(username) ? plugin.getServer().getOfflinePlayer(uuid).getName() : username;
         if (actualUsername == null) actualUsername = username;
-        accounts.put(uuid, new AccountData(actualUsername, hashPassword(password), ip, autoLogin, System.currentTimeMillis()));
+        accounts.put(uuid, new AccountData(actualUsername, hashPassword(password), ip, autoLogin, System.currentTimeMillis(), uuid));
         markDirty();
     }
 
     public boolean authenticate(UUID uuid, String username, String password) {
         AccountData data = accounts.get(uuid);
         if (data == null) return false;
+        // Check UUID binding: only allow if the player's UUID matches the bound UUID
+        if (!data.boundUuid.equals(uuid)) return false;
         return data.username.equals(username) && data.passwordHash.equals(hashPassword(password));
     }
 
@@ -89,7 +92,10 @@ public class AuthManager {
         String hash = hashPassword(password);
         for (Map.Entry<UUID, AccountData> e : accounts.entrySet()) {
             if (e.getValue().username.equals(username) && e.getValue().passwordHash.equals(hash)) {
-                return e.getKey();
+                // Enforce UUID binding
+                if (e.getValue().boundUuid.equals(e.getKey())) {
+                    return e.getKey();
+                }
             }
         }
         return null;
@@ -167,6 +173,7 @@ public class AuthManager {
             config.set("accounts." + key + ".ip", data.ip);
             config.set("accounts." + key + ".autoLogin", data.autoLogin);
             config.set("accounts." + key + ".registeredTime", data.registeredTime);
+            config.set("accounts." + key + ".boundUuid", data.boundUuid.toString());
         }
         try {
             config.save(file);
@@ -187,7 +194,11 @@ public class AuthManager {
             String ip = config.getString("accounts." + key + ".ip");
             boolean autoLogin = config.getBoolean("accounts." + key + ".autoLogin");
             long registeredTime = config.getLong("accounts." + key + ".registeredTime");
-            accounts.put(uuid, new AccountData(username, passwordHash, ip, autoLogin, registeredTime));
+            // Migrate old accounts: if boundUuid is missing, set it to the key UUID
+            UUID boundUuid = config.contains("accounts." + key + ".boundUuid")
+                    ? UUID.fromString(config.getString("accounts." + key + ".boundUuid"))
+                    : uuid;
+            accounts.put(uuid, new AccountData(username, passwordHash, ip, autoLogin, registeredTime, boundUuid));
         }
     }
 
@@ -211,13 +222,15 @@ public class AuthManager {
         String ip;
         boolean autoLogin;
         long registeredTime;
+        UUID boundUuid;
 
-        AccountData(String username, String passwordHash, String ip, boolean autoLogin, long registeredTime) {
+        AccountData(String username, String passwordHash, String ip, boolean autoLogin, long registeredTime, UUID boundUuid) {
             this.username = username;
             this.passwordHash = passwordHash;
             this.ip = ip;
             this.autoLogin = autoLogin;
             this.registeredTime = registeredTime;
+            this.boundUuid = boundUuid;
         }
     }
 }

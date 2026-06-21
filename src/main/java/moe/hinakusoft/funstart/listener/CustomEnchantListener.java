@@ -22,12 +22,23 @@ import org.bukkit.util.Vector;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * 自定义附魔效果监听器。
+ * <p>
+ * 处理 9 种自定义附魔的全部游戏内效果，包括：
+ * 矿工之敏（双倍矿石）、生命恢复、霜痕、龟壳移动、
+ * 爆裂投掷、叶隐、时间减缓、四季夏目、密集射击。
+ * <p>
+ * 每 5 tick 对所有在线玩家执行被动效果检测（霜痕、叶隐、四季夏目持有）。
+ * 主动效果（攻击、击杀、投射物）通过事件监听触发。
+ * 所有随机数使用 ThreadLocalRandom 替代 Random 实例字段。
+ */
 public class CustomEnchantListener implements Listener {
 
     private final FunstartPlugin plugin;
     private final FSTActionBar actionBar;
-    private final Random random = new Random();
 
     private static final Set<Material> ORES = Set.of(
         Material.COAL_ORE, Material.DEEPSLATE_COAL_ORE,
@@ -81,7 +92,7 @@ public class CustomEnchantListener implements Listener {
     private void sendShikiActionBar(Player player, String category) {
         List<String> msgs = getShikiMessages(category);
         if (msgs.isEmpty()) return;
-        String msg = msgs.get(random.nextInt(msgs.size()));
+        String msg = msgs.get(ThreadLocalRandom.current().nextInt(msgs.size()));
         actionBar.add(player, "§c§l四季 夏目： §r§c§o" + msg);
     }
 
@@ -111,7 +122,7 @@ public class CustomEnchantListener implements Listener {
 
         Player player = event.getPlayer();
 
-        if (hasShikiInHand(player) && random.nextInt(100) < 16) {
+        if (hasShikiInHand(player) && ThreadLocalRandom.current().nextInt(100) < 16) {
             sendShikiActionBar(player, "break");
         }
 
@@ -128,7 +139,7 @@ public class CustomEnchantListener implements Listener {
 
         if (processingMinerBlocks.contains(block)) return;
 
-        if (random.nextInt(100) < Math.min(level * 8, 80)) {
+        if (ThreadLocalRandom.current().nextInt(100) < Math.min(level * 8, 80)) {
             processingMinerBlocks.add(block);
             Material oreType = block.getType();
             Bukkit.getScheduler().runTask(plugin, () -> {
@@ -155,7 +166,7 @@ public class CustomEnchantListener implements Listener {
         Player killer = event.getEntity().getKiller();
         if (killer == null) return;
 
-        if (hasShikiInHand(killer) && random.nextInt(100) < 75) {
+        if (hasShikiInHand(killer) && ThreadLocalRandom.current().nextInt(100) < 75) {
             sendShikiActionBar(killer, "kill");
         }
 
@@ -206,7 +217,7 @@ public class CustomEnchantListener implements Listener {
     public void onEntityDamage(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
 
-        if (hasShikiInHand(player) && random.nextInt(100) < 66) {
+        if (hasShikiInHand(player) && ThreadLocalRandom.current().nextInt(100) < 66) {
             sendShikiActionBar(player, "damage");
         }
 
@@ -386,7 +397,7 @@ public class CustomEnchantListener implements Listener {
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
 
-        if (hasShikiInHand(player) && random.nextInt(100) < 22) {
+        if (hasShikiInHand(player) && ThreadLocalRandom.current().nextInt(100) < 22) {
             sendShikiActionBar(player, "attack");
         }
 
@@ -395,7 +406,7 @@ public class CustomEnchantListener implements Listener {
         int level = getHighestLevel(player, CustomEnchantment.TIME_SLOW);
         if (level <= 0) return;
 
-        if (random.nextInt(100) < level * 20) {
+        if (ThreadLocalRandom.current().nextInt(100) < level * 20) {
             target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60 + level * 20, level - 1, true, false));
             actionBar.add(player, "§5[时间减缓] §a减速目标");
         }

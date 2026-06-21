@@ -10,17 +10,62 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+/**
+ * 玩家认证管理器。
+ * <p>
+ * 使用 SHA-256 哈希密码，提供登录、注册、IP 自动登录等功能。
+ * 数据以 YAML 格式持久化到 auth.yml。
+ * <p>
+ * == 异步去重保存 ==
+ * 每次密码变更（注册、改密、重置）不会立即写文件，而是：
+ * 1. 设置脏标记 (dirty = true)
+ * 2. 调度 3 秒后执行 syncSave()
+ * 3. 3 秒内的多次变更合并为一次写入
+ * 这大幅降低了高频操作时的 YAML 全量写开销。
+ * 插件关闭时通过 flush() 保证最后一批数据写出。
+ */
 public class AuthManager {
 
     private final FunstartPlugin plugin;
+    /** auth.yml 文件引用 */
     private final File file;
+    /** UUID → 账号数据 内存缓存 */
     private final Map<UUID, AccountData> accounts = new HashMap<>();
+    /**
+     * 异步保存线程池
+     */
+    private final ScheduledExecutorService saveExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "funstart-auth-save");
+        t.setDaemon(true);
+        return t;
+    });
+    private volatile boolean dirty = false;
 
     public AuthManager(FunstartPlugin plugin) {
         this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "auth.yml");
         load();
+    }
+
+    private void markDirty() {
+        if (!dirty) {
+            dirty = true;
+            saveExecutor.schedule(this::syncSave, 3, TimeUnit.SECONDS);
+        }
+    }
+
+    private synchronized void syncSave() {
+        if (!dirty) return;
+        dirty = false;
+        save();
+    }
+
+    public void flush() {
+        syncSave();
     }
 
     public boolean isRegistered(UUID uuid) {
@@ -31,7 +76,7 @@ public class AuthManager {
         String actualUsername = "0".equals(username) ? plugin.getServer().getOfflinePlayer(uuid).getName() : username;
         if (actualUsername == null) actualUsername = username;
         accounts.put(uuid, new AccountData(actualUsername, hashPassword(password), ip, autoLogin, System.currentTimeMillis()));
-        save();
+        markDirty();
     }
 
     public boolean authenticate(UUID uuid, String username, String password) {
@@ -78,7 +123,7 @@ public class AuthManager {
         if (data == null) return;
         data.autoLogin = autoLogin;
         data.ip = ip;
-        save();
+        markDirty();
     }
 
     public String getUsername(UUID uuid) {
@@ -97,7 +142,7 @@ public class AuthManager {
         AccountData data = accounts.get(uuid);
         if (data == null) return false;
         data.passwordHash = hashPassword(newPassword);
-        save();
+        markDirty();
         return true;
     }
 

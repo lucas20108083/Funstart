@@ -1,3 +1,41 @@
+/*
+ * Funstart —— Paper 1.21.4 服务器功能插件
+ *
+ * ================================================================
+ *  全局工具与编码规范
+ * ================================================================
+ *
+ * 1. 随机数: 禁止使用 new Random()，始终使用 ThreadLocalRandom.current()
+ *    - ThreadLocalRandom 无锁、无对象分配开销，适用于所有线程
+ *    - 示例: ThreadLocalRandom.current().nextInt(max) | nextDouble() | nextBoolean()
+ *
+ * 2. 方块/材料常量集: 禁止使用 Set<String> + type.name()
+ *    - 优先使用 EnumSet<Material>，类型安全且性能更优（位运算 O(1)）
+ *    - 示例: EnumSet.of(Material.TNT, Material.LAVA)
+ *
+ * 3. 距离比较: 避免 distance() 的开平方根开销
+ *    - 比较距离时使用 distanceSquared()，预先计算阈值的平方
+ *    - 示例: if (a.distanceSquared(b) < 25.0)    // 等价于 distance < 5.0
+ *
+ * 4. 文件 I/O 与持久化: 避免在主线程执行
+ *    - LogManager 使用异步队列 + 虚拟线程消费者
+ *    - PlayerDataManager 使用独立线程池异步保存
+ *    - AuthManager 使用去重定时写入（3 秒合并窗口）
+ *
+ * 5. 定时扫描型任务: 优先事件驱动
+ *    - CustomItemManager 不再每 tick 扫描全背包，改为事件触发重扫
+ *    - 每 tick 仅迭代持有自定义物品的玩家
+ *
+ * 6. 并发容器: 使用 ConcurrentHashMap / ConcurrentHashMap.newKeySet()
+ *    - 避免使用 HashMap / HashSet 在可能被多线程访问的字段上
+ *
+ * 7. 实体遍历: 避免 getEntities() + instanceof 过滤
+ *    - 使用 getEntitiesByClass(T) 只获取目标类型实体
+ *    - 示例: world.getEntitiesByClass(Item.class)
+ *
+ * ================================================================
+ */
+
 package moe.hinakusoft.funstart;
 
 import moe.hinakusoft.funstart.command.FsrankCommand;
@@ -25,8 +63,12 @@ import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class FunstartPlugin
 extends JavaPlugin implements Listener {
@@ -38,7 +80,6 @@ extends JavaPlugin implements Listener {
     private final Set<UUID> pendingTeleports = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Location> pendingWarpCreation = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> effectiveUuids = new ConcurrentHashMap<>();
-    private final Random random = new Random();
     private FSTActionBar actionBar;
     private CustomItemManager customItemManager;
     private FSTFood fstFood;
@@ -222,6 +263,9 @@ extends JavaPlugin implements Listener {
         if (this.multiThreadManager != null) {
             this.multiThreadManager.shutdown();
         }
+        if (this.authManager != null) {
+            this.authManager.flush();
+        }
         this.getLogger().info("Funstart 已禁用");
     }
 
@@ -386,7 +430,7 @@ extends JavaPlugin implements Listener {
                 this.playerDataManager.savePlayerData(p.getUniqueId());
                 p.sendMessage("§e[Funstart] §a已发放面板钟, 右键打开功能面板");
             } else {
-                p.sendMessage("§e[Funstart] §c背包已满, 下次进服时将发放面板钟");
+                p.sendMessage("§e[Funstart] §c背包已满, 下次进服再给你~");
             }
         }
 
@@ -466,23 +510,22 @@ extends JavaPlugin implements Listener {
                 // Online time: 3-5 point every 60 seconds
                 if (now - sd.lastOnlinePointTime >= 60000L) {
                     sd.lastOnlinePointTime = now;
-                    int earned = 3 + random.nextInt(3);
+                    int earned = 3 + ThreadLocalRandom.current().nextInt(3);
                     data.addPoints(earned);
                     actionBar.add(player, String.format("§e在线 +%d点数", earned));
                 }
 
                 // Distance: 4-8 points per 1000 blocks
                 Location current = player.getLocation();
-                if (sd.lastPosition != null && sd.lastPosition.getWorld() != null
-                    && current.getWorld() != null
-                    && sd.lastPosition.getWorld().equals(current.getWorld())) {
+                if (sd.lastPosition != null && current.getWorld() != null
+                        && current.getWorld().equals(sd.lastPosition.getWorld())) {
                     double dist = sd.lastPosition.distance(current);
                     if (dist > 0.0 && dist < 1000.0) {
                         sd.distanceSinceLastPoint += dist;
                         if (sd.distanceSinceLastPoint >= 1000.0) {
                             int earned = (int) (sd.distanceSinceLastPoint / 1000.0);
                             sd.distanceSinceLastPoint -= earned * 1000.0;
-                            earned *= (4 + random.nextInt(8));
+                            earned *= (4 + ThreadLocalRandom.current().nextInt(8));
                             data.addPoints(earned);
                             actionBar.add(player, String.format("§e移动 +%d点数", earned));
                         }
@@ -492,13 +535,12 @@ extends JavaPlugin implements Listener {
 
                 // Check warp creation distance cancel
                 Location warpStart = pendingWarpCreation.get(uid);
-                if (warpStart != null && warpStart.getWorld().equals(current.getWorld())) {
-                    if (warpStart.distance(current) >= 5.0) {
-                        pendingWarpCreation.remove(uid);
-                        PendingChatAction action = removePendingChatAction(uid);
-                        if (action != null && action.type == PendingChatAction.Type.ADD_WARP) {
-                            player.sendMessage("§c已取消创建传送点 (移动距离过远)");
-                        }
+                if (warpStart != null && warpStart.getWorld().equals(current.getWorld())
+                        && warpStart.distanceSquared(current) >= 25.0) {
+                    pendingWarpCreation.remove(uid);
+                    PendingChatAction action = removePendingChatAction(uid);
+                    if (action != null && action.type == PendingChatAction.Type.ADD_WARP) {
+                        player.sendMessage("§c已取消创建传送点 (移动距离过远)");
                     }
                 }
             }
@@ -526,15 +568,14 @@ extends JavaPlugin implements Listener {
                 int arrowCount = 0;
                 long nowCleanup = System.currentTimeMillis();
                 for (org.bukkit.World world : Bukkit.getWorlds()) {
-                    for (org.bukkit.entity.Entity entity : world.getEntities()) {
-                        if (entity instanceof org.bukkit.entity.Item) {
-                            entity.remove();
-                            count++;
-                        } else if (entity instanceof org.bukkit.entity.Arrow arrow) {
-                            if (arrow.isInBlock() && nowCleanup - arrow.getTicksLived() * 50L > 30000L) {
-                                arrow.remove();
-                                arrowCount++;
-                            }
+                    for (org.bukkit.entity.Item item : world.getEntitiesByClass(org.bukkit.entity.Item.class)) {
+                        item.remove();
+                        count++;
+                    }
+                    for (org.bukkit.entity.Arrow arrow : world.getEntitiesByClass(org.bukkit.entity.Arrow.class)) {
+                        if (arrow.isInBlock() && nowCleanup - arrow.getTicksLived() * 50L > 30000L) {
+                            arrow.remove();
+                            arrowCount++;
                         }
                     }
                 }
@@ -561,7 +602,6 @@ extends JavaPlugin implements Listener {
 
     public Map<UUID, SessionData> getSessions() { return sessions; }
     public Map<UUID, Location> getPendingWarpCreation() { return pendingWarpCreation; }
-    public Random getRandom() { return random; }
     public boolean hasPendingTeleport(UUID uuid) { return pendingTeleports.contains(uuid); }
     public void setPendingTeleport(UUID uuid, boolean pending) {
         if (pending) pendingTeleports.add(uuid);

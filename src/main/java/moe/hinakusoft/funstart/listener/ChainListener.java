@@ -20,9 +20,19 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * 连锁挖掘监听器。
+ * <p>
+ * 玩家潜行时使用工具破坏方块，通过 3D 泛洪填充自动破坏所有
+ * 相连的同类方块。矿石方块计入免费额度，非矿石方块消耗点数。
+ * 矿工之敏附魔可在连锁中二次触发双倍掉落。
+ * <p>
+ * 性能要点：BlockUtils.floodFill 的 max 由 PlayerData.maxChainBlocks 控制，
+ * 后续的 actuallyBroken 循环合并了非矿石统计与破坏逻辑，避免二次遍历。
+ */
 public class ChainListener implements Listener {
 
     private static final Set<Material> CROPS = Set.of(
@@ -31,7 +41,6 @@ public class ChainListener implements Listener {
     );
 
     private final FunstartPlugin plugin;
-    private final Random random = new Random();
 
     public ChainListener(FunstartPlugin plugin) {
         this.plugin = plugin;
@@ -74,6 +83,7 @@ public class ChainListener implements Listener {
         event.setCancelled(true);
 
         List<Block> actuallyBroken = new ArrayList<>();
+        int actualNonOre = 0;
 
         for (Block block : toBreak) {
             // Skip protected blocks
@@ -90,6 +100,7 @@ public class ChainListener implements Listener {
                 break;
             }
             actuallyBroken.add(block);
+            if (!isOreBlock(block)) actualNonOre++;
             boolean wasOre = isOreBlock(block);
             Material oreType = block.getType();
             block.breakNaturally(tool);
@@ -97,17 +108,12 @@ public class ChainListener implements Listener {
 
             if (wasOre && !tool.containsEnchantment(Enchantment.SILK_TOUCH)) {
                 int minerLevel = EnchantGuiListener.getCustomLevel(tool, plugin, CustomEnchantment.MINER_AGILITY);
-                if (minerLevel > 0 && isPickaxeType(tool.getType()) && random.nextInt(100) < Math.min(minerLevel * 8, 80)) {
+                if (minerLevel > 0 && isPickaxeType(tool.getType()) && ThreadLocalRandom.current().nextInt(100) < Math.min(minerLevel * 8, 80)) {
                     block.setType(oreType);
                     block.breakNaturally(tool);
                     tool.damage(1, player);
                 }
             }
-        }
-
-        int actualNonOre = 0;
-        for (Block b : actuallyBroken) {
-            if (!isOreBlock(b)) actualNonOre++;
         }
         double actualCost = actualNonOre / 16.0;
 

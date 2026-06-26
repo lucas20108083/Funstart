@@ -309,19 +309,9 @@ public class CustomEnchantListener implements Listener {
     private void doExplosion(Player player, Projectile projectile, int level) {
         Location hitLoc = projectile.getLocation();
 
-        // Claim check for explosive throw
+        // Check per-claim explosive throw setting
         var claim = plugin.getClaimManager().getClaimAt(hitLoc);
-        if (claim != null) {
-            UUID effUuid = plugin.getEffectiveUuid(player);
-            boolean isOwner = claim.getOwner().equals(effUuid);
-            boolean isTrusted = claim.getTrustedPlayers().contains(effUuid);
-            boolean claimSelf = plugin.getConfig().getBoolean("explosive-throw.claim-self", true);
-            boolean claimTrusted = plugin.getConfig().getBoolean("explosive-throw.claim-trusted", true);
-            boolean claimOther = plugin.getConfig().getBoolean("explosive-throw.claim-other", false);
-            if (isOwner && !claimSelf) return;
-            if (!isOwner && isTrusted && !claimTrusted) return;
-            if (!isOwner && !isTrusted && !claimOther) return;
-        }
+        if (claim != null && !claim.isAllowExplosiveThrow()) return;
 
         float power = (0.3f + (level - 1) * 0.3f) * 1.35f;
 

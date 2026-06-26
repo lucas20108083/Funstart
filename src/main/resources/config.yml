@@ -1,7 +1,3 @@
-explosive-throw:
-  claim-self: true
-  claim-trusted: true
-  claim-other: false
 shiki-natsume:
   messages:
     attack:

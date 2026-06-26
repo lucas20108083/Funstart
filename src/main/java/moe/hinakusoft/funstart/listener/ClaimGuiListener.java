@@ -69,6 +69,12 @@ public class ClaimGuiListener implements Listener {
             inv.setItem(22, makeItem(creeperMat, "§6§l苦力怕爆炸",
                 "§7当前: " + creeperStatus,
                 "§7点击切换"));
+
+            Material exMat = claim.isAllowExplosiveThrow() ? Material.FIREWORK_ROCKET : Material.BARRIER;
+            String exStatus = claim.isAllowExplosiveThrow() ? "§a已启用" : "§c已禁用";
+            inv.setItem(23, makeItem(exMat, "§5§l爆裂投掷",
+                "§7当前: " + exStatus,
+                "§7点击切换"));
         }
 
         inv.setItem(26, makeItem(Material.BARRIER, "§c关闭"));
@@ -133,11 +139,12 @@ public class ClaimGuiListener implements Listener {
                 plugin.addPendingChatAction(player.getUniqueId(),
                     FunstartPlugin.PendingChatAction.Type.ADD_TRUSTED, null);
                 player.sendMessage("§a请输入要添加的信任人玩家名:");
-            } else if (slot == 21 || slot == 22) {
+            } else if (slot == 21 || slot == 22 || slot == 23) {
                 ClaimRegion claim = plugin.getClaimManager().getClaimByOwner(plugin.getEffectiveUuid(player));
                 if (claim == null) return;
                 if (slot == 21) claim.setAllowTnt(!claim.isAllowTnt());
                 if (slot == 22) claim.setAllowCreeper(!claim.isAllowCreeper());
+                if (slot == 23) claim.setAllowExplosiveThrow(!claim.isAllowExplosiveThrow());
                 plugin.getClaimManager().save();
                 openMain(player, plugin);
             } else if (slot == 26) {

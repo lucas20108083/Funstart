@@ -17,6 +17,7 @@ public class ClaimRegion {
     private Set<UUID> trustedPlayers = new HashSet<>();
     private boolean allowTnt = false;
     private boolean allowCreeper = false;
+    private boolean allowExplosiveThrow = true;
 
     public ClaimRegion() {}
 
@@ -41,6 +42,7 @@ public class ClaimRegion {
         map.put("x2", x2); map.put("y2", y2); map.put("z2", z2);
         map.put("allowTnt", allowTnt);
         map.put("allowCreeper", allowCreeper);
+        map.put("allowExplosiveThrow", allowExplosiveThrow);
         List<String> trusted = new ArrayList<>();
         for (UUID u : trustedPlayers) trusted.add(u.toString());
         map.put("trusted", trusted);
@@ -56,6 +58,7 @@ public class ClaimRegion {
         c.x2 = (int) map.get("x2"); c.y2 = (int) map.get("y2"); c.z2 = (int) map.get("z2");
         if (map.containsKey("allowTnt")) c.allowTnt = (boolean) map.get("allowTnt");
         if (map.containsKey("allowCreeper")) c.allowCreeper = (boolean) map.get("allowCreeper");
+        if (map.containsKey("allowExplosiveThrow")) c.allowExplosiveThrow = (boolean) map.get("allowExplosiveThrow");
         List<String> trusted = (List<String>) map.getOrDefault("trusted", new ArrayList<>());
         for (String s : trusted) c.trustedPlayers.add(UUID.fromString(s));
         return c;
@@ -106,4 +109,6 @@ public class ClaimRegion {
     public void setAllowTnt(boolean allowTnt) { this.allowTnt = allowTnt; }
     public boolean isAllowCreeper() { return allowCreeper; }
     public void setAllowCreeper(boolean allowCreeper) { this.allowCreeper = allowCreeper; }
+    public boolean isAllowExplosiveThrow() { return allowExplosiveThrow; }
+    public void setAllowExplosiveThrow(boolean allowExplosiveThrow) { this.allowExplosiveThrow = allowExplosiveThrow; }
 }

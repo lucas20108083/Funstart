@@ -2,6 +2,7 @@ package moe.hinakusoft.funstart.listener;
 
 import moe.hinakusoft.funstart.FunstartPlugin;
 import moe.hinakusoft.funstart.manager.FSTActionBar;
+import moe.hinakusoft.funstart.model.ClaimRegion;
 import moe.hinakusoft.funstart.model.CustomEnchantment;
 import org.bukkit.*;
 import org.bukkit.block.Block;
@@ -307,6 +308,21 @@ public class CustomEnchantListener implements Listener {
 
     private void doExplosion(Player player, Projectile projectile, int level) {
         Location hitLoc = projectile.getLocation();
+
+        // Claim check for explosive throw
+        var claim = plugin.getClaimManager().getClaimAt(hitLoc);
+        if (claim != null) {
+            UUID effUuid = plugin.getEffectiveUuid(player);
+            boolean isOwner = claim.getOwner().equals(effUuid);
+            boolean isTrusted = claim.getTrustedPlayers().contains(effUuid);
+            boolean claimSelf = plugin.getConfig().getBoolean("explosive-throw.claim-self", true);
+            boolean claimTrusted = plugin.getConfig().getBoolean("explosive-throw.claim-trusted", true);
+            boolean claimOther = plugin.getConfig().getBoolean("explosive-throw.claim-other", false);
+            if (isOwner && !claimSelf) return;
+            if (!isOwner && isTrusted && !claimTrusted) return;
+            if (!isOwner && !isTrusted && !claimOther) return;
+        }
+
         float power = (0.3f + (level - 1) * 0.3f) * 1.35f;
 
         hitLoc.getWorld().createExplosion(hitLoc, power, false, false, player);

@@ -159,6 +159,11 @@ public class AuthListener implements Listener {
 
     private void startRegistration(Player player) {
         UUID uuid = player.getUniqueId();
+        if (authManager.isRegistered(uuid)) {
+            player.sendMessage("§c你已经注册过账号了，无需重复注册");
+            player.sendMessage("§c如需重新注册请联系管理员");
+            return;
+        }
         regSteps.put(uuid, new RegStep());
         player.sendMessage("§e请输入账号名 (仅字母和数字, 输入0使用你的游戏名):");
     }
@@ -210,6 +215,10 @@ public class AuthListener implements Listener {
 
     private void startLogin(Player player) {
         UUID uuid = player.getUniqueId();
+        if (isAuthenticated(player)) {
+            player.sendMessage("§a你已经登录了");
+            return;
+        }
         loginSteps.put(uuid, new LoginStep());
         player.sendMessage("§e请输入账号名:");
     }

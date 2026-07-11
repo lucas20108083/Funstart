@@ -94,6 +94,7 @@ extends JavaPlugin implements Listener {
     private FeatureConfig featureConfig;
     private MultiThreadManager multiThreadManager;
     private RankManager rankManager;
+    private RewardBagManager rewardBagManager;
 
     public void onEnable() {
         saveDefaultConfig();
@@ -150,6 +151,7 @@ extends JavaPlugin implements Listener {
         this.getServer().getPluginManager().registerEvents(new moe.hinakusoft.funstart.listener.LogListener(this), this);
         this.getServer().getPluginManager().registerEvents(prankListener, this);
         this.getServer().getPluginManager().registerEvents(this, this);
+        this.rewardBagManager = new RewardBagManager(this);
         this.startAutoFixTask();
         this.startPointsEarningTask();
         this.startCleanupTask();
@@ -292,6 +294,10 @@ extends JavaPlugin implements Listener {
 
     public RankManager getRankManager() {
         return rankManager;
+    }
+
+    public RewardBagManager getRewardBagManager() {
+        return rewardBagManager;
     }
 
     public Map<UUID, PendingChatAction> getPendingChatActions() { return pendingChatActions; }

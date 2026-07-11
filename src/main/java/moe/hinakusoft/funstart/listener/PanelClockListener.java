@@ -112,6 +112,13 @@ public class PanelClockListener implements Listener {
                     "§5§l恶搞面板", "§7隐身 / 闪电 / 爆炸", "§7移动物品栏"));
         }
 
+        // 新手礼包 (slot 45 - bottom-left)
+        inv.setItem(45, makeItem(Material.CHEST, "§a§l新手礼包",
+            "§7首次领取可获得",
+            "§73×铜锭 3×熟鳕鱼 5×石头",
+            "§74×深色橡木树苗 1×糖",
+            "§7并赠送 §e300 点数"));
+
         // Bottom-right: player head
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
@@ -547,6 +554,20 @@ public class PanelClockListener implements Listener {
             }
             case 17 -> {
                 if (player.isOp() && checkFeature(player, FeatureFlag.PRANK)) PrankGuiListener.openMain(player, plugin);
+            }
+            case 45 -> {
+                var rbm = plugin.getRewardBagManager();
+                if (rbm == null) return;
+                String accountName = plugin.getAuthManager() != null ? plugin.getAuthManager().getUsername(player.getUniqueId()) : "";
+                if (accountName == null) accountName = "";
+                String result = switch (rbm.claimReward(player, "firstReward", accountName, player.getName())) {
+                    case SUCCESS -> "§a新手礼包领取成功! 获得 §e300 点数 §a和多种物品";
+                    case ALREADY_CLAIMED -> "§c你已经领取过新手礼包了";
+                    case NO_SPACE -> "§c背包空间不足! 需要至少 §e5 §c个空格";
+                    case NOT_FOUND -> "§c该礼包不存在";
+                };
+                player.sendMessage("§e[Funstart] " + result);
+                openMainMenu(player, plugin);
             }
             case 53 -> openMainMenu(player, plugin);
         }

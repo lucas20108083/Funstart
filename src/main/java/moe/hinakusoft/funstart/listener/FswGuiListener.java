@@ -155,6 +155,13 @@ public class FswGuiListener implements Listener {
 
         inv.setItem(49, makeItem(Material.BARRIER, "§c返回"));
 
+        // Random teleport button (right side)
+        inv.setItem(52, makeItem(Material.COMPASS, "§5§l随机传送",
+            "§7消耗 §e10 §7点数",
+            "§7优先在未探索区块传送",
+            "§7避开领地周围5区块",
+            "§a点击随机传送"));
+
         if (page + 1 < totalPages)
             inv.setItem(53, makeItem(Material.ARROW, "§a下一页", "§7第" + (page + 2) + "页"));
 
@@ -295,6 +302,10 @@ public class FswGuiListener implements Listener {
         }
         if (slot == 46) {
             openTeleportList(player, plugin, page, !deleteMode);
+            return;
+        }
+        if (slot == 52) {
+            handleRandomTeleport(player);
             return;
         }
         if (slot == 53) {
@@ -547,5 +558,108 @@ public class FswGuiListener implements Listener {
             return 100.0;
         }
         return Math.max(1.0, from.distance(to) / 100.0);
+    }
+
+    private void handleRandomTeleport(Player player) {
+        PlayerData data = plugin.getPlayerDataManager().getPlayerData(player);
+        if (data.getPoints() < 10) {
+            player.sendMessage("§c点数不足! 需要 §e10 §c点");
+            return;
+        }
+
+        World world = player.getWorld();
+        List<ClaimRegion> allClaims = plugin.getClaimManager().getAllClaims();
+        int radius = 10000;
+        int centerX = 0, centerZ = 0;
+        int minY = world.getMinHeight() + 5;
+        int maxY = world.getMaxHeight() - 5;
+        int attempts = 100;
+
+        Location bestLoc = null;
+        boolean foundUnexplored = false;
+
+        for (int i = 0; i < attempts; i++) {
+            int x = centerX + (int) (Math.random() * 2 * radius - radius);
+            int z = centerZ + (int) (Math.random() * 2 * radius - radius);
+
+            int chunkX = x >> 4, chunkZ = z >> 4;
+            boolean isUnexplored = !world.isChunkGenerated(chunkX, chunkZ);
+
+            if (!foundUnexplored && !isUnexplored) continue;
+
+            boolean nearClaim = false;
+            for (ClaimRegion claim : allClaims) {
+                if (claim.getWorldName().equals(world.getName())) {
+                    double cx = (claim.getX1() + claim.getX2()) / 2.0;
+                    double cz = (claim.getZ1() + claim.getZ2()) / 2.0;
+                    if (Math.abs(x - cx) < 5 * 16 || Math.abs(z - cz) < 5 * 16) {
+                        nearClaim = true;
+                        break;
+                    }
+                }
+            }
+            if (nearClaim) continue;
+
+            int y = getSafeY(world, x, z, minY, maxY);
+            if (y < 0) continue;
+
+            if (isUnexplored || !foundUnexplored) {
+                bestLoc = new Location(world, x + 0.5, y, z + 0.5);
+                if (isUnexplored) foundUnexplored = true;
+                break;
+            }
+        }
+
+        if (bestLoc == null) {
+            // Fallback: just find any spot away from claims
+            for (int i = 0; i < attempts * 2; i++) {
+                int fx = centerX + (int) (Math.random() * 2 * radius - radius);
+                int fz = centerZ + (int) (Math.random() * 2 * radius - radius);
+
+                boolean nearClaim = false;
+                for (ClaimRegion claim : allClaims) {
+                    if (claim.getWorldName().equals(world.getName())) {
+                        double cx = (claim.getX1() + claim.getX2()) / 2.0;
+                        double cz = (claim.getZ1() + claim.getZ2()) / 2.0;
+                        if (Math.abs(fx - cx) < 5 * 16 || Math.abs(fz - cz) < 5 * 16) {
+                            nearClaim = true;
+                            break;
+                        }
+                    }
+                }
+                if (nearClaim) continue;
+
+                int y = getSafeY(world, fx, fz, minY, maxY);
+                if (y < 0) continue;
+
+                bestLoc = new Location(world, fx + 0.5, y, fz + 0.5);
+                break;
+            }
+        }
+
+        if (bestLoc == null) {
+            player.sendMessage("§c未找到合适的传送位置，请稍后再试");
+            return;
+        }
+
+        data.deductPoints(10);
+        plugin.getPlayerDataManager().savePlayerData(player.getUniqueId());
+        player.closeInventory();
+        player.teleportAsync(bestLoc).thenAccept(success -> {
+            if (success) {
+                player.sendMessage("§5[随机传送] §a已传送, 消耗 §e10 §a点, 剩余 §e" + PlayerData.fmt(data.getPoints()) + " §a点");
+            } else {
+                data.addPoints(10);
+                plugin.getPlayerDataManager().savePlayerData(player.getUniqueId());
+                player.sendMessage("§5[随机传送] §c传送失败，点数已退还");
+            }
+        });
+    }
+
+    private int getSafeY(World world, int x, int z, int minY, int maxY) {
+        int y = world.getHighestBlockYAt(x, z);
+        if (y < minY || y > maxY) return -1;
+        if (world.getBlockAt(x, y + 1, z).getType().isSolid()) return -1;
+        return y + 1;
     }
 }
